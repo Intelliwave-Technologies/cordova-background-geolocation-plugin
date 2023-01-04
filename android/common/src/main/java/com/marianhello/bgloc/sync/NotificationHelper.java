@@ -75,12 +75,18 @@ public class NotificationHelper {
             // Add an onclick handler to the notification
             String packageName = appContext.getPackageName();
             Intent launchIntent = appContext.getPackageManager().getLaunchIntentForPackage(packageName);
+            
             if (launchIntent != null) {
                 // NOTICE: testing apps might not have registered launch intent
                 launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-                int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                        ? PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                        : PendingIntent.FLAG_CANCEL_CURRENT;
+
+                // TODO: The changes below were made to get this project to compile on compileSdkVersion=31 without updating jdk to 11.
+                int flags = PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+                
+                // int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+                //         ? PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
+                //         : PendingIntent.FLAG_CANCEL_CURRENT;
+
                 PendingIntent contentIntent = PendingIntent.getActivity(appContext, 0, launchIntent, flags);
                 builder.setContentIntent(contentIntent);
             }

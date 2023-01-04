@@ -404,7 +404,9 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
 
     @Override
     public void startForeground() {
-        if (sIsRunning && !mIsInForeground) {
+
+        // Start the service even if we're in the foreground.
+        if (sIsRunning) { 
             Config config = getConfig();
             Notification notification = new NotificationHelper.NotificationFactory(this).getNotification(
                     config.getNotificationTitle(),

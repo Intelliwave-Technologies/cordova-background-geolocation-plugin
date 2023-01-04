@@ -157,8 +157,7 @@
             <service
                 android:enabled="true"
                 android:exported="false"
-                android:name="com.marianhello.bgloc.service.LocationServiceImpl"
-                android:foregroundServiceType="location"
+                android:name="com.marianhello.bgloc.service.LocationServiceImpl"                
                 />
             <receiver
                   android:name="com.marianhello.bgloc.BootCompletedReceiver"

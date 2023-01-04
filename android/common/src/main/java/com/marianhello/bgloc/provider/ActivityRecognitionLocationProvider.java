@@ -49,7 +49,7 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
         super.onCreate();
 
         Intent detectedActivitiesIntent = new Intent(DETECTED_ACTIVITY_UPDATE);
-        detectedActivitiesPI = PendingIntent.getBroadcast(mContext, 9002, detectedActivitiesIntent, PendingIntent.FLAG_UPDATE_CURRENT);
+        detectedActivitiesPI = PendingIntent.getBroadcast(mContext, 9002, detectedActivitiesIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
         registerReceiver(detectedActivitiesReceiver, new IntentFilter(DETECTED_ACTIVITY_UPDATE));
     }
 
@@ -233,6 +233,10 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
         @Override
         public void onReceive(Context context, Intent intent) {
             ActivityRecognitionResult result = ActivityRecognitionResult.extractResult(intent);
+
+            // Need to deal with null result or the app can crash.
+            if (result == null) return;
+
             ArrayList<DetectedActivity> detectedActivities = (ArrayList) result.getProbableActivities();
 
             //Find the activity with the highest percentage
