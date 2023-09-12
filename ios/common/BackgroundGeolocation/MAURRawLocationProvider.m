@@ -11,20 +11,37 @@
 #import "MAURLocationManager.h"
 #import "MAURLogging.h"
 
+@import UserNotifications;
+
 static NSString * const TAG = @"RawLocationProvider";
 static NSString * const Domain = @"com.marianhello";
+
+enum {
+    maxLocationWaitTimeInSeconds = 15,
+    maxLocationAgeInSeconds = 30,
+    maxDistanceFilter = 9999
+};
 
 @implementation MAURRawLocationProvider {
 
     BOOL isStarted;
+    BOOL isNotificationPermitted;
     MAURLocationManager *locationManager;
     
     MAURConfig *_config;
+
+    NSTimer *startScanTimer; // Timer to control accuracy to save battery.
+    NSTimer *scanTimer; // Timer to control length of scan and reset starting scan.
+
+    NSTimeInterval scanInterval;
+    NSTimeInterval intervalBetweenScans;
 }
 
 - (instancetype) init
 {
     self = [super init];
+    scanInterval = 30;
+    intervalBetweenScans = 5*60;
 
     if (self) {
         isStarted = NO;
@@ -42,22 +59,38 @@ static NSString * const Domain = @"com.marianhello";
 {
     DDLogVerbose(@"%@ configure", TAG);
     _config = config;
+    
+    // NOTE: Only possible on certain platforms. This being false would use more battery but should let us run in the background.
+    locationManager.pausesLocationUpdatesAutomatically = false;
 
-    locationManager.pausesLocationUpdatesAutomatically = [config pauseLocationUpdates];
-    locationManager.activityType = [config decodeActivityType];
-    locationManager.distanceFilter = config.distanceFilter.integerValue; // meters
-    locationManager.desiredAccuracy = [config decodeDesiredAccuracy];
+    locationManager.activityType = CLActivityTypeOther;
+    locationManager.distanceFilter = maxDistanceFilter; // meters
+    locationManager.desiredAccuracy = kCLLocationAccuracyThreeKilometers; // Start scanning with low accuracy.
+    
+    scanInterval = config.intervalOfScan.integerValue;
+    intervalBetweenScans = config.intervalBetweenScans.integerValue;
 
     return YES;
 }
 
+// Uses the significant changes location API to trigger location updates.
 - (BOOL) onStart:(NSError * __autoreleasing *)outError
 {
-    DDLogInfo(@"%@ will start", TAG);
+    NSLog(@"%@ will start", TAG);
+    
+    // Request permissions when starting scanning but it'll only be used when app is terminated and launched from background.
+    // TODO: Maybe move this to a CDVBackgroundGeolocation method and call this from UI.
+    UNUserNotificationCenter* center = [UNUserNotificationCenter currentNotificationCenter];
+    UNAuthorizationOptions options = (UNAuthorizationOptionAlert | UNAuthorizationOptionBadge | UNAuthorizationOptionSound);
+    [center requestAuthorizationWithOptions:options completionHandler:^(BOOL granted, NSError* e) {
+        NSLog(@"RawLocationProvider - Got permissions for push notifications.");
+    }];
 
     if (!isStarted) {
         [locationManager stopMonitoringSignificantLocationChanges];
         isStarted = [locationManager start:outError];
+
+        [self resetStartScanTimer];
     }
 
     return isStarted;
@@ -65,15 +98,18 @@ static NSString * const Domain = @"com.marianhello";
 
 - (BOOL) onStop:(NSError * __autoreleasing *)outError
 {
-    DDLogInfo(@"%@ will stop", TAG);
+    NSLog(@"%@ will stop", TAG);
 
     if (!isStarted) {
         return YES;
     }
 
+    NSLog(@"CDVBackgroundGeolocation - Going to stop significant");
     [locationManager stopMonitoringSignificantLocationChanges];
     if ([locationManager stop:outError]) {
         isStarted = NO;
+        startScanTimer = nil;
+        scanTimer = nil;
         return YES;
     }
 
@@ -82,7 +118,9 @@ static NSString * const Domain = @"com.marianhello";
 
 - (void) onTerminate
 {
-    if (isStarted && !_config.stopOnTerminate) {
+    NSLog(@"%@ will terminate", TAG);
+
+    if (isStarted) {
         [locationManager startMonitoringSignificantLocationChanges];
     }
 }
@@ -92,8 +130,78 @@ static NSString * const Domain = @"com.marianhello";
     [self.delegate onAuthorizationChanged:authStatus];
 }
 
+- (void) resetStartScanTimer
+{
+   if (startScanTimer == nil || ![startScanTimer isValid]) {
+        NSLog(@"RawLocationProvider - Starting startScanTimer");
+        
+        // When this timer fires start aggressively scanning.
+        startScanTimer = [NSTimer scheduledTimerWithTimeInterval:intervalBetweenScans
+                            target: self
+                            selector: @selector(changeLocationAccuracy)
+                            userInfo: nil
+                            repeats: NO];
+    }
+}
+
+// Toggles location accuracy between aggressive location scanning and
+// almost passive location scanning to save battery while waiting for startScanTimer to expire.
+- (void) changeLocationAccuracy
+{
+    CLLocationAccuracy currentAccuracy = locationManager.desiredAccuracy;
+    NSLog(@"RawLocationProvider - Changing accuracy, %f", currentAccuracy);
+    
+    if (currentAccuracy <= kCLLocationAccuracyBest) {
+        
+        [locationManager setDesiredAccuracy:kCLLocationAccuracyThreeKilometers];
+        [locationManager setDistanceFilter:maxDistanceFilter];
+        [self resetStartScanTimer];
+
+    } else if (currentAccuracy <= kCLLocationAccuracyThreeKilometers) {
+        
+        [locationManager setDesiredAccuracy:kCLLocationAccuracyBest];
+        [locationManager setDistanceFilter:kCLDistanceFilterNone];
+
+        // Allow high accuracy location scan for an interval and then reset accuracy and startScanTimer.
+        scanTimer = [NSTimer scheduledTimerWithTimeInterval:scanInterval
+                        target: self
+                        selector: @selector(changeLocationAccuracy)
+                        userInfo: nil
+                        repeats: NO];
+
+    } else {
+        NSLog(@"RawLocationProvider - Unknown accuracy, accuracy not changed");
+    }
+
+}
+
 - (void) onLocationsChanged:(NSArray*)locations
 {
+    NSLog(@"RawLocationProvider - Location received");
+    MAURLocation *bestLocation = nil;
+    for (CLLocation *location in locations) {
+        MAURLocation *bgloc = [MAURLocation fromCLLocation:location];
+        
+        NSLog(@"RawLocationProvider - Location age %f", [bgloc locationAge]);
+        if ([bgloc locationAge] > maxLocationAgeInSeconds || ![bgloc hasAccuracy] || ![bgloc hasTime]) {
+            continue;
+        }
+        
+        if (bestLocation == nil) {
+            bestLocation = bgloc;
+            continue;
+        }
+        
+        if ([bgloc isBetterLocation:bestLocation]) {
+            NSLog(@"RawLocationProvider - Better location found: %@", bgloc);
+            bestLocation = bgloc;
+        }
+    }
+    
+    if (bestLocation == nil) {
+        return;
+    }
+
     for (CLLocation *location in locations) {
         MAURLocation *bgloc = [MAURLocation fromCLLocation:location];
         [self.delegate onLocationChanged:bgloc];
@@ -115,8 +223,20 @@ static NSString * const Domain = @"com.marianhello";
     [self.delegate onLocationResume];
 }
 
+- (void) onSwitchMode:(MAUROperationalMode)mode
+{
+    NSLog(@"%@ onSwitchMode %lu", TAG, (unsigned long)mode);
+    if (mode == MAURForegroundMode) {
+        NSLog(@"CDVBackgroundGeolocation - Stopping monitoring.");
+        [locationManager stopMonitoringSignificantLocationChanges];
+    } else if (mode == MAURBackgroundMode) {
+        NSLog(@"CDVBackgroundGeolocation - Starting monitoring beeg changes, shouldnt die");
+        [locationManager startMonitoringSignificantLocationChanges];
+    }
+}
+
 - (void) onDestroy {
-    DDLogInfo(@"Destroying %@ ", TAG);
+    NSLog(@"Destroying %@ ", TAG);
     [self onStop:nil];
 }
 

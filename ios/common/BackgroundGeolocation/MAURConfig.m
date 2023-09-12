@@ -12,7 +12,11 @@
 
 @implementation MAURConfig 
 
-@synthesize stationaryRadius, distanceFilter, desiredAccuracy, _debug, activityType, activitiesInterval, _stopOnTerminate, url, syncUrl, syncThreshold, httpHeaders, _saveBatteryOnBackground, maxLocations, _pauseLocationUpdates, locationProvider, _template;
+@synthesize stationaryRadius, distanceFilter, desiredAccuracy, _debug, 
+activityType, activitiesInterval, _stopOnTerminate, url, syncUrl, syncThreshold, 
+httpHeaders, _saveBatteryOnBackground, maxLocations, _pauseLocationUpdates, 
+locationProvider, _template,
+intervalOfScan, intervalBetweenScans;
 
 -(instancetype) initWithDefaults {
     self = [super init];
@@ -34,6 +38,9 @@
     _pauseLocationUpdates = [NSNumber numberWithBool:NO];
     locationProvider = [NSNumber numberWithInt:DISTANCE_FILTER_PROVIDER];
 //    template =
+
+    intervalOfScan = [NSNumber numberWithInt:30];
+    intervalBetweenScans = [NSNumber numberWithInt:300];
     
     return self;
 }
@@ -47,6 +54,12 @@
     }
     if (isNotNull(config[@"distanceFilter"])) {
         instance.distanceFilter = config[@"distanceFilter"];
+    }
+    if (isNotNull(config[@"intervalOfScan"])) {
+        instance.intervalOfScan = config[@"intervalOfScan"];
+    }
+    if (isNotNull(config[@"intervalBetweenScans"])) {
+        instance.intervalBetweenScans = config[@"intervalBetweenScans"];
     }
     if (isNotNull(config[@"desiredAccuracy"])) {
         instance.desiredAccuracy = config[@"desiredAccuracy"];
@@ -155,6 +168,12 @@
         merger._template = newConfig._template;
     }
 
+    if ([newConfig hasIntervalOfScan]) {
+        merger.intervalOfScan = newConfig.intervalOfScan;
+    }
+    if ([newConfig hasIntervalBetweenScans]) {
+        merger.intervalBetweenScans = newConfig.intervalBetweenScans;
+    }
     return merger;
 }
 
@@ -178,6 +197,8 @@
         copy._pauseLocationUpdates = _pauseLocationUpdates;
         copy.locationProvider = locationProvider;
         copy._template = _template;
+        copy.intervalOfScan = intervalOfScan;
+        copy.intervalBetweenScans = intervalBetweenScans;
     }
     
     return copy;
@@ -191,6 +212,16 @@
 - (BOOL) hasDistanceFilter
 {
     return distanceFilter != nil;
+}
+
+- (BOOL) hasIntervalOfScan
+{
+    return intervalOfScan != nil;
+}
+
+- (BOOL) hasIntervalBetweenScans
+{
+    return intervalBetweenScans != nil;
 }
 
 - (BOOL) hasDesiredAccuracy
@@ -471,6 +502,10 @@
     if ([self hasMaxLocations]) [dict setObject:self.maxLocations forKey:@"maxLocations"];
     if ([self hasPauseLocationUpdates]) [dict setObject:self._pauseLocationUpdates forKey:@"pauseLocationUpdates"];
     if ([self hasLocationProvider]) [dict setObject:self.locationProvider forKey:@"locationProvider"];
+
+    if ([self hasIntervalOfScan]) [dict setObject:self.intervalOfScan forKey:@"intervalOfScan"];
+    if ([self hasIntervalBetweenScans]) [dict setObject:self.intervalBetweenScans forKey:@"intervalBetweenScans"];
+
     [dict setObject:self._template forKey:@"postTemplate"];
 
     return dict;
@@ -478,8 +513,12 @@
 
 - (NSString *) description
 {
-    return [NSString stringWithFormat:@"Config: distanceFilter=%@ stationaryRadius=%@ desiredAccuracy=%@ activityType=%@ activitiesInterval=%@ isDebugging=%@ stopOnTerminate=%@ url=%@ syncThreshold=%@ maxLocations=%@ httpHeaders=%@ pauseLocationUpdates=%@ saveBatteryOnBackground=%@ locationProvider=%@ postTemplate=%@", self.distanceFilter, self.stationaryRadius, self.desiredAccuracy, self.activityType, self.activitiesInterval, self._debug, self._stopOnTerminate, self.url, self.syncThreshold, self.maxLocations, self.httpHeaders, self._pauseLocationUpdates, self._saveBatteryOnBackground, self.locationProvider, self._template];
-
+    return [NSString stringWithFormat:@"Config: distanceFilter=%@ stationaryRadius=%@ desiredAccuracy=%@ activityType=%@ activitiesInterval=%@ isDebugging=%@ stopOnTerminate=%@ url=%@ syncThreshold=%@ maxLocations=%@ httpHeaders=%@ pauseLocationUpdates=%@ saveBatteryOnBackground=%@ locationProvider=%@ postTemplate=%@ hasIntervalOfScan=%@ hasIntervalBetweenScans=%@", 
+    self.distanceFilter, self.stationaryRadius, 
+    self.desiredAccuracy, self.activityType, 
+    self.activitiesInterval, self._debug, self._stopOnTerminate, 
+    self.url, self.syncThreshold, self.maxLocations, self.httpHeaders, self._pauseLocationUpdates,
+    self._saveBatteryOnBackground, self.locationProvider, self._template, self.intervalOfScan, self.intervalBetweenScans];
 }
 
 @end

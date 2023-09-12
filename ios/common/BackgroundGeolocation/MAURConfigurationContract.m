@@ -42,7 +42,9 @@
         @{ @"name": @CC_COLUMN_NAME_MAX_LOCATIONS, @"type": [SQLColumnType sqlColumnWithType: kInteger]},
         @{ @"name": @CC_COLUMN_NAME_PAUSE_LOCATION_UPDATES, @"type": [SQLColumnType sqlColumnWithType: kInteger]},
         @{ @"name": @CC_COLUMN_NAME_TEMPLATE, @"type": [SQLColumnType sqlColumnWithType: kText]},
-        @{ @"name": @CC_COLUMN_NAME_LAST_UPDATED_AT, @"type": [SQLColumnType sqlColumnWithType: kInteger]}        
+        @{ @"name": @CC_COLUMN_NAME_LAST_UPDATED_AT, @"type": [SQLColumnType sqlColumnWithType: kInteger]},        
+        @{ @"name": @CC_COLUMN_NAME_SCAN_INTERVAL, @"type": [SQLColumnType sqlColumnWithType: kInteger]},
+        @{ @"name": @CC_COLUMN_NAME_INTERVAL_BETWEEN_SCANS, @"type": [SQLColumnType sqlColumnWithType: kInteger]},        
     ];
     
     return [MAURSQLiteHelper createTableSqlStatement:@CC_TABLE_NAME columns:columns];

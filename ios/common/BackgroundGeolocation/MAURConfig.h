@@ -35,6 +35,8 @@ enum {
 @property NSNumber *_pauseLocationUpdates;
 @property NSNumber *locationProvider;
 @property NSObject *_template;
+@property NSNumber *intervalOfScan;
+@property NSNumber *intervalBetweenScans;
 
 - (instancetype) initWithDefaults;
 + (instancetype) fromDictionary:(NSDictionary*)config;
@@ -59,6 +61,8 @@ enum {
 - (BOOL) hasLocationProvider;
 - (BOOL) hasTemplate;
 - (BOOL) hasActivitiesInterval;
+- (BOOL) hasIntervalOfScan;
+- (BOOL) hasIntervalBetweenScans;
 - (BOOL) isDebugging;
 - (BOOL) stopOnTerminate;
 - (BOOL) saveBatteryOnBackground;
