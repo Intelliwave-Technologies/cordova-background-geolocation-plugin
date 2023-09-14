@@ -19,7 +19,7 @@ static NSString * const Domain = @"com.marianhello";
 enum {
     maxLocationWaitTimeInSeconds = 15,
     maxLocationAgeInSeconds = 30,
-    maxDistanceFilter = 9999
+    maxDistanceFilter = 9999,
 };
 
 @implementation MAURRawLocationProvider {
@@ -62,8 +62,14 @@ enum {
     
     // NOTE: Only possible on certain platforms. This being false would use more battery but should let us run in the background.
     locationManager.pausesLocationUpdatesAutomatically = false;
+    
+    // NOTE: Since iOS16+ this is required to run in the background forever: https://developer.apple.com/forums/thread/726945
+    [locationManager setShowsBackgroundLocationIndicator:true];
 
     locationManager.activityType = CLActivityTypeOther;
+
+    // NOTE: Distance filter doesn't affect battery usage, only changing accuracy does.
+    // Increasing distance filter only reduces # of updates we get.
     locationManager.distanceFilter = maxDistanceFilter; // meters
     locationManager.desiredAccuracy = kCLLocationAccuracyThreeKilometers; // Start scanning with low accuracy.
     
@@ -108,6 +114,10 @@ enum {
     [locationManager stopMonitoringSignificantLocationChanges];
     if ([locationManager stop:outError]) {
         isStarted = NO;
+        
+        [startScanTimer invalidate];
+        [scanTimer invalidate];
+        
         startScanTimer = nil;
         scanTimer = nil;
         return YES;
@@ -246,4 +256,3 @@ enum {
 }
 
 @end
-
