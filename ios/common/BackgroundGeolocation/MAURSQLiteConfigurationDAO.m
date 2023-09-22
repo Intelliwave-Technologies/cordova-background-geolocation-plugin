@@ -119,7 +119,9 @@
                     [config hasSaveBatteryOnBackground] ? config._saveBatteryOnBackground : @CC_COLUMN_NAME_NULLABLE,
                     [config hasMaxLocations] ? config.maxLocations : @CC_COLUMN_NAME_NULLABLE,
                     [config hasPauseLocationUpdates] ? config._pauseLocationUpdates : @CC_COLUMN_NAME_NULLABLE,
-                    (templateString != nil) ? templateString : @CC_COLUMN_NAME_NULLABLE
+                    (templateString != nil) ? templateString : @CC_COLUMN_NAME_NULLABLE,
+                    [config hasIntervalOfScan] ? config.intervalOfScan : @CC_COLUMN_NAME_NULLABLE,
+                    [config hasIntervalBetweenScans] ? config.intervalBetweenScans : @CC_COLUMN_NAME_NULLABLE
                 ];
 
         if (success) {
