@@ -36,13 +36,13 @@ var unsubscribeAll = function (channels) {
   });
 }
 
-var execWithPromise = function (suceess, failure, method, data) {
-  if (!suceess && !failure) {
+var execWithPromise = function (success, failure, method, data) {
+  if (!success && !failure) {
     return new Promise(function (resolve, reject) {
       exec(resolve, reject, 'BackgroundGeolocation', method, data);    
     });
   }
-  exec(suceess || function() {}, failure || function() {}, 'BackgroundGeolocation', method, data || []);
+  exec(success || function() {}, failure || function() {}, 'BackgroundGeolocation', method, data || []);
 }
 
 var BackgroundGeolocation = {

@@ -6,7 +6,9 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.location.Location;
+import android.os.Build;
 import android.os.Bundle;
+import android.os.Handler;
 import android.os.PowerManager;
 import android.util.Log;
 
@@ -30,6 +32,8 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
     private static final String P_NAME = " com.marianhello.bgloc";
     private static final String DETECTED_ACTIVITY_UPDATE = P_NAME + ".DETECTED_ACTIVITY_UPDATE";
 
+    private static final int LOCATION_SCAN_TIME = 5000;
+
     private GoogleApiClient googleApiClient;
     private PendingIntent detectedActivitiesPI;
 
@@ -38,6 +42,15 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
     private boolean isWatchingActivity = false;
     private Location lastLocation;
     private DetectedActivity lastActivity = new DetectedActivity(DetectedActivity.UNKNOWN, 100);
+
+    // Initialize default scan intervals, these are updated by onConfigure().
+    private int SCAN_INTERVAL = 60000; // 60 seconds
+	private int INTERVAL_BETWEEN_SCANS = 60000; // 60 seconds
+
+	// Pretends to be a timer as timerHandler can post a delayed runnable.
+	// Can repeat timer by reposting this handler at the end of the runnable.
+	Handler resetScanTimerHandler = new Handler();
+	Handler scanTimerHandler = new Handler();
 
     public ActivityRecognitionLocationProvider(Context context) {
         super(context);
@@ -49,7 +62,12 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
         super.onCreate();
 
         Intent detectedActivitiesIntent = new Intent(DETECTED_ACTIVITY_UPDATE);
-        detectedActivitiesPI = PendingIntent.getBroadcast(mContext, 9002, detectedActivitiesIntent, PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+        detectedActivitiesPI = PendingIntent.getBroadcast(
+        	mContext,
+			9002,
+			detectedActivitiesIntent,
+			PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+
         registerReceiver(detectedActivitiesReceiver, new IntentFilter(DETECTED_ACTIVITY_UPDATE));
     }
 
@@ -58,6 +76,7 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
         logger.info("Start recording");
         this.isStarted = true;
         attachRecorder();
+        resetScanTimer();
     }
 
     @Override
@@ -66,16 +85,59 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
         this.isStarted = false;
         detachRecorder();
         stopTracking();
+
+        resetScanTimerHandler.removeCallbacksAndMessages(null);
+        scanTimerHandler.removeCallbacksAndMessages(null);
     }
 
     @Override
     public void onConfigure(Config config) {
         super.onConfigure(config);
+
+        // intervalOfScan and intervalBetweenScans is provided in seconds, need to convert to
+		// milliseconds for use with timers.
+        SCAN_INTERVAL = config.getIntervalOfScan() * 1000;
+        INTERVAL_BETWEEN_SCANS = config.getIntervalBetweenScans() * 1000;
+
         if (isStarted) {
             onStop();
             onStart();
         }
     }
+
+	/**
+	 * Wait for intervalBetweenScans and then aggressively poll location fixes
+	 * for scanInterval. Repeat forever.
+	 */
+	public void resetScanTimer() {
+		Runnable resetScanTimerRunnable = new Runnable() {
+			@Override
+			public void run() {
+				startScan();
+			}
+		};
+
+		// TODO; Make configurable.
+		resetScanTimerHandler.postDelayed(resetScanTimerRunnable, INTERVAL_BETWEEN_SCANS);
+
+	}
+
+	public void startScan() {
+    	startTracking();
+    	Log.d("LOCATION UPDATE", "Starting scan");
+
+    	// Stop running scan after awhile
+		Runnable scanTimerRunnable = new Runnable() {
+			@Override
+			public void run() {
+				Log.d("LOCATION UPDATE", "Timer fired, stopping scan");
+				stopTracking();
+				resetScanTimer();
+			}
+		};
+
+		scanTimerHandler.postDelayed(scanTimerRunnable, SCAN_INTERVAL);
+	}
 
     @Override
     public boolean isStarted() {
@@ -86,11 +148,11 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
     public void onLocationChanged(Location location) {
         logger.debug("Location change: {}", location.toString());
 
-        if (lastActivity.getType() == DetectedActivity.STILL) {
-            handleStationary(location);
-            stopTracking();
-            return;
-        }
+//        if (lastActivity.getType() == DetectedActivity.STILL) {
+//            handleStationary(location);
+//            stopTracking();
+//            return;
+//        }
 
         showDebugToast("acy:" + location.getAccuracy() + ",v:" + location.getSpeed());
 
@@ -104,9 +166,9 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
         Integer priority = translateDesiredAccuracy(mConfig.getDesiredAccuracy());
         LocationRequest locationRequest = LocationRequest.create()
                 .setPriority(priority) // this.accuracy
-                .setFastestInterval(mConfig.getFastestInterval())
-                .setInterval(mConfig.getInterval());
-        // .setSmallestDisplacement(mConfig.getStationaryRadius());
+                .setFastestInterval(LOCATION_SCAN_TIME)
+                .setInterval(LOCATION_SCAN_TIME);
+
         try {
             LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
             isTracking = true;
@@ -146,15 +208,15 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
             connectToPlayAPI();
         } else if (googleApiClient.isConnected()) {
             if (isWatchingActivity) { return; }
-            startTracking();
-            if (mConfig.getStopOnStillActivity()) {
-                ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(
-                        googleApiClient,
-                        mConfig.getActivitiesInterval(),
-                        detectedActivitiesPI
-                );
-                isWatchingActivity = true;
-            }
+//            startTracking();
+//            if (mConfig.getStopOnStillActivity()) {
+//                ActivityRecognition.ActivityRecognitionApi.requestActivityUpdates(
+//                        googleApiClient,
+//                        5000,
+//                        detectedActivitiesPI
+//                );
+//                isWatchingActivity = true;
+//            }
         } else {
             googleApiClient.connect();
         }

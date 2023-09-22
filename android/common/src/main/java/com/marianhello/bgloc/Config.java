@@ -64,6 +64,9 @@ public class Config implements Parcelable
     private Integer maxLocations;
     private LocationTemplate template;
 
+    private Integer intervalOfScan;
+    private Integer intervalBetweenScans;
+
     public Config () {
     }
 
@@ -92,6 +95,10 @@ public class Config implements Parcelable
         this.syncThreshold = config.syncThreshold;
         this.httpHeaders = CloneHelper.deepCopy(config.httpHeaders);
         this.maxLocations = config.maxLocations;
+
+        this.intervalOfScan = config.intervalOfScan;
+        this.intervalBetweenScans = config.intervalBetweenScans;
+        
         if (config.template instanceof AbstractLocationTemplate) {
             this.template = ((AbstractLocationTemplate)config.template).clone();
         }
@@ -120,6 +127,8 @@ public class Config implements Parcelable
         setSyncUrl(in.readString());
         setSyncThreshold(in.readInt());
         setMaxLocations(in.readInt());
+        setIntervalOfScan(in.readInt());
+        setIntervalBetweenScans(in.readInt());
         Bundle bundle = in.readBundle();
         setHttpHeaders((HashMap<String, String>) bundle.getSerializable("httpHeaders"));
         setTemplate((LocationTemplate) bundle.getSerializable(AbstractLocationTemplate.BUNDLE_KEY));
@@ -150,6 +159,8 @@ public class Config implements Parcelable
         config.syncThreshold = 100;
         config.httpHeaders = null;
         config.maxLocations = 10000;
+        config.intervalOfScan = 60000;
+        config.intervalBetweenScans = 300000;
         config.template = null;
 
         return config;
@@ -183,6 +194,8 @@ public class Config implements Parcelable
         out.writeString(getSyncUrl());
         out.writeInt(getSyncThreshold());
         out.writeInt(getMaxLocations());
+        out.writeInt(getIntervalOfScan());
+        out.writeInt(getIntervalBetweenScans());
         Bundle bundle = new Bundle();
         bundle.putSerializable("httpHeaders", getHttpHeaders());
         bundle.putSerializable(AbstractLocationTemplate.BUNDLE_KEY, (AbstractLocationTemplate) getTemplate());
@@ -501,6 +514,30 @@ public class Config implements Parcelable
         return maxLocations;
     }
 
+    public boolean hasIntervalOfScan() {
+        return intervalOfScan != null;
+    }
+
+    public Integer getIntervalOfScan() {
+        return intervalOfScan;
+    }
+
+    public void setIntervalOfScan(Integer intervalOfScan) {
+        this.intervalOfScan = intervalOfScan;
+    }
+
+    public boolean hasIntervalBetweenScans() {
+        return intervalBetweenScans != null;
+    }
+
+    public Integer getIntervalBetweenScans() {
+        return intervalBetweenScans;
+    }
+
+    public void setIntervalBetweenScans(Integer intervalBetweenScans) {
+        this.intervalBetweenScans = intervalBetweenScans;
+    }
+
     public void setMaxLocations(Integer maxLocations) {
         this.maxLocations = maxLocations;
     }
@@ -546,6 +583,8 @@ public class Config implements Parcelable
                 .append(" syncThreshold=").append(getSyncThreshold())
                 .append(" httpHeaders=").append(getHttpHeaders().toString())
                 .append(" maxLocations=").append(getMaxLocations())
+                .append(" intervalOfScan=").append(getIntervalOfScan())
+                .append( " intervalBetweenScans=").append(getIntervalBetweenScans())
                 .append(" postTemplate=").append(hasTemplate() ? getTemplate().toString() : null)
                 .append("]")
                 .toString();
@@ -636,6 +675,12 @@ public class Config implements Parcelable
         if (config2.hasMaxLocations()) {
             merger.setMaxLocations(config2.getMaxLocations());
         }
+        if (config2.hasIntervalOfScan()) {
+            merger.setIntervalOfScan(config2.getIntervalOfScan());
+        }
+        if (config2.hasIntervalBetweenScans()) {
+			merger.setIntervalBetweenScans(config2.getIntervalBetweenScans());
+		}
         if (config2.hasTemplate()) {
             merger.setTemplate(config2.getTemplate());
         }
