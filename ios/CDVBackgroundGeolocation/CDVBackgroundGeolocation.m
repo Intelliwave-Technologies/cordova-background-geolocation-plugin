@@ -68,6 +68,7 @@ static NSString * const TAG = @"CDVBackgroundGeolocation";
 - (void) start:(CDVInvokedUrlCommand*)command
 {
     NSLog(@"%@ #%@", TAG, @"start");
+    
     [self.commandDelegate runInBackground:^{
         NSError *error = nil;
 
@@ -479,15 +480,15 @@ static NSString * const TAG = @"CDVBackgroundGeolocation";
 {
     NSDictionary *dict = [notification userInfo];
     MAURConfig *config = [facade getConfig];
+    
+    // Reset the application badge number.
+    [[UIApplication sharedApplication] setApplicationIconBadgeNumber:0];
 
-    if (config.isDebugging)
+    if (@available(iOS 10, *))
     {
-        if (@available(iOS 10, *))
-        {
-            UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-            prevNotificationDelegate = center.delegate;
-            center.delegate = self;
-        }
+        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+        prevNotificationDelegate = center.delegate;
+        center.delegate = self;
     }
 
     if ([dict objectForKey:UIApplicationLaunchOptionsLocationKey]) {
@@ -496,74 +497,29 @@ static NSString * const TAG = @"CDVBackgroundGeolocation";
             [facade start:nil];
             [facade switchMode:MAURBackgroundMode];
         }
-
-        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-
-        // Launched in background likely after app terminate, display notification that background geolocation is restricted.
-        if (@available(iOS 10, *))
-        {
-            [self isNotificationPermitted:center withCompletionHandler:^(BOOL permitted) {
-                if (permitted) {
-                    [self scheduleNotification:center];
-                }
-            }];
-        }
     }
 }
-
--(void)scheduleNotification:(UNUserNotificationCenter *)center
-{
-    UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-    content.title = @"SiteSense - Background Geolocation Notification";
-    content.body = @"App has been terminated due to out of memory or closed by user. Background BLE scanning is not active or active with restricted performance. Tap here to wake up the app and resume normal scanning.";
-
-    // Configure the trigger for a 7am wakeup.
-    NSTimeInterval notificationTrigger = 60;
-
-    UNTimeIntervalNotificationTrigger* trigger = [UNTimeIntervalNotificationTrigger
-                                                  triggerWithTimeInterval:notificationTrigger
-                                                  repeats:false];
-
-    UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:@"BackgroundGeolocationActive"
-                                                                          content:content
-                                                                          trigger:nil];
-    
-    [center addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
-        if (error != nil) {
-            NSLog(@"RawLocationProvider - %@", error.localizedDescription);
-        }
-        NSLog(@"RawLocationProvider - Successfully, maybe scheduled notification.");
-    }];
-}
-
--(BOOL)isNotificationPermitted:(UNUserNotificationCenter *)center
-    withCompletionHandler:(void (^)(BOOL permitted))completionHandler
-{
-    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings* settings) {
-        BOOL authorized = settings.authorizationStatus == UNAuthorizationStatusAuthorized;
-        BOOL enabled    = settings.notificationCenterSetting == UNNotificationSettingEnabled;
-        BOOL permitted  = authorized && enabled;
-        NSLog(@"RawLocationProvider - Is Permitted: %s",  permitted ? "true" : "false");
-        completionHandler(permitted);
-    }];
-}
-
 
 - (void)userNotificationCenter:(UNUserNotificationCenter *)center
        willPresentNotification:(UNNotification *)notification
          withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler
 {
+
+    NSLog(@"NotificationProvider - Caught exception not displaying.");
+    NSDictionary* userInfo = notification.request.content.userInfo;
+    BOOL isGeolocationNotification = (BOOL)userInfo[@"isGeolocationNotification"];
+    if (isGeolocationNotification) {
+        completionHandler(UNNotificationPresentationOptionNone);
+        return;
+    }
+    
+    // TODO: Not sure what this does.
     if (prevNotificationDelegate && [prevNotificationDelegate respondsToSelector:@selector(userNotificationCenter:willPresentNotification:withCompletionHandler:)])
     {
         // Give other delegates (like FCM) the chance to process this notification
-
         [prevNotificationDelegate userNotificationCenter:center willPresentNotification:notification withCompletionHandler:^(UNNotificationPresentationOptions options) {
             completionHandler(UNNotificationPresentationOptionAlert);
         }];
-    }
-    else
-    {
-        completionHandler(UNNotificationPresentationOptionAlert);
     }
 }
 

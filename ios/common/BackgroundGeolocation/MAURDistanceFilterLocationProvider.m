@@ -99,7 +99,7 @@ enum {
  */
 - (BOOL) onStart:(NSError * __autoreleasing *)outError
 {
-    DDLogInfo(@"%@ will start", TAG);
+    NSLog(@"%@ will start", TAG);
     
     NSUInteger authStatus;
     
@@ -176,7 +176,7 @@ enum {
  */
 - (void) switchMode:(MAUROperationalMode)mode
 {
-    DDLogInfo(@"%@ switchMode %lu", TAG, (unsigned long)mode);
+    NSLog(@"%@ switchMode %lu", TAG, (unsigned long)mode);
     
     operationMode = mode;
     
@@ -202,7 +202,7 @@ enum {
 
 - (void) locationManager:(CLLocationManager *)manager didUpdateLocations:(NSArray *)locations
 {
-    DDLogDebug(@"%@ didUpdateLocations (operationMode: %lu)", TAG, (unsigned long)operationMode);
+    NSLog(@"%@ didUpdateLocations (operationMode: %lu)", TAG, (unsigned long)operationMode);
     
     MAUROperationalMode actAsInMode = operationMode;
     
@@ -297,7 +297,7 @@ enum {
         // Adjust distanceFilter incrementally based upon current speed
         float newDistanceFilter = [self calculateDistanceFilter:[bestLocation.speed floatValue]];
         if (newDistanceFilter != locationManager.distanceFilter) {
-            DDLogInfo(@"%@ updated distanceFilter, new: %f, old: %f", TAG, newDistanceFilter, locationManager.distanceFilter);
+            NSLog(@"%@ updated distanceFilter, new: %f, old: %f", TAG, newDistanceFilter, locationManager.distanceFilter);
             locationManager.distanceFilter = newDistanceFilter;
             [self startUpdatingLocation];
         }
@@ -308,6 +308,7 @@ enum {
         [self switchMode:operationMode];
     }
     
+    NSLog(@"%@ Got location update", TAG);
     [super.delegate onLocationChanged:bestLocation];
 }
 

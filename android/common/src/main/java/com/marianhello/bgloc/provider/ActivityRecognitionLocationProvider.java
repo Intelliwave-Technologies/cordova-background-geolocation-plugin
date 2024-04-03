@@ -117,16 +117,13 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
 			}
 		};
 
-		// TODO; Make configurable.
 		resetScanTimerHandler.postDelayed(resetScanTimerRunnable, INTERVAL_BETWEEN_SCANS);
-
 	}
 
 	public void startScan() {
     	startTracking();
     	Log.d("LOCATION UPDATE", "Starting scan");
 
-    	// Stop running scan after awhile
 		Runnable scanTimerRunnable = new Runnable() {
 			@Override
 			public void run() {
@@ -172,7 +169,13 @@ public class ActivityRecognitionLocationProvider extends AbstractLocationProvide
         try {
             LocationServices.FusedLocationApi.requestLocationUpdates(googleApiClient, locationRequest, this);
             isTracking = true;
-            logger.debug("Start tracking with priority={} fastestInterval={} interval={} activitiesInterval={} stopOnStillActivity={}", priority, mConfig.getFastestInterval(), mConfig.getInterval(), mConfig.getActivitiesInterval(), mConfig.getStopOnStillActivity());
+            logger.debug("Start tracking with priority={} fastestInterval={} interval={} activitiesInterval={} stopOnStillActivity={}",
+				priority,
+				mConfig.getFastestInterval(),
+				mConfig.getInterval(),
+				mConfig.getActivitiesInterval(),
+				mConfig.getStopOnStillActivity());
+
         } catch (SecurityException e) {
             logger.error("Security exception: {}", e.getMessage());
             this.handleSecurityException(e);
