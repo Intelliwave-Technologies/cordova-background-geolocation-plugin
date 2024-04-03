@@ -14,7 +14,7 @@
 @implementation MAURGeolocationOpenHelper
 
 static NSString *const kDatabaseName = @"cordova_bg_geolocation.db";
-static NSInteger const kDatabaseVersion = 3;
+static NSInteger const kDatabaseVersion = 4;
 
 - (instancetype)init
 {

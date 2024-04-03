@@ -68,6 +68,7 @@ static NSString * const TAG = @"CDVBackgroundGeolocation";
 - (void) start:(CDVInvokedUrlCommand*)command
 {
     NSLog(@"%@ #%@", TAG, @"start");
+    
     [self.commandDelegate runInBackground:^{
         NSError *error = nil;
 
@@ -479,15 +480,15 @@ static NSString * const TAG = @"CDVBackgroundGeolocation";
 {
     NSDictionary *dict = [notification userInfo];
     MAURConfig *config = [facade getConfig];
+    
+    // Reset the application badge number.
+    [[UIApplication sharedApplication] setApplicationIconBadgeNumber:0];
 
-    if (config.isDebugging)
+    if (@available(iOS 10, *))
     {
-        if (@available(iOS 10, *))
-        {
-            UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-            prevNotificationDelegate = center.delegate;
-            center.delegate = self;
-        }
+        UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
+        prevNotificationDelegate = center.delegate;
+        center.delegate = self;
     }
 
     if ([dict objectForKey:UIApplicationLaunchOptionsLocationKey]) {
@@ -503,17 +504,22 @@ static NSString * const TAG = @"CDVBackgroundGeolocation";
        willPresentNotification:(UNNotification *)notification
          withCompletionHandler:(void (^)(UNNotificationPresentationOptions options))completionHandler
 {
+
+    NSLog(@"NotificationProvider - Caught exception not displaying.");
+    NSDictionary* userInfo = notification.request.content.userInfo;
+    BOOL isGeolocationNotification = (BOOL)userInfo[@"isGeolocationNotification"];
+    if (isGeolocationNotification) {
+        completionHandler(UNNotificationPresentationOptionNone);
+        return;
+    }
+    
+    // TODO: Not sure what this does.
     if (prevNotificationDelegate && [prevNotificationDelegate respondsToSelector:@selector(userNotificationCenter:willPresentNotification:withCompletionHandler:)])
     {
         // Give other delegates (like FCM) the chance to process this notification
-
         [prevNotificationDelegate userNotificationCenter:center willPresentNotification:notification withCompletionHandler:^(UNNotificationPresentationOptions options) {
             completionHandler(UNNotificationPresentationOptionAlert);
         }];
-    }
-    else
-    {
-        completionHandler(UNNotificationPresentationOptionAlert);
     }
 }
 

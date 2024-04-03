@@ -90,6 +90,12 @@ public class ConfigMapper {
         if (jObject.has("maxLocations")) {
             config.setMaxLocations(jObject.getInt("maxLocations"));
         }
+        if (jObject.has("intervalOfScan")) {
+            config.setIntervalOfScan(jObject.getInt("intervalOfScan"));
+        }
+        if (jObject.has("intervalBetweenScans")) {
+            config.setIntervalBetweenScans(jObject.getInt("intervalBetweenScans"));
+        }
         if (jObject.has("postTemplate")) {
             if (jObject.isNull("postTemplate")) {
                 config.setTemplate(LocationTemplateFactory.getDefault());
@@ -127,6 +133,8 @@ public class ConfigMapper {
         json.put("syncThreshold", config.getSyncThreshold());
         json.put("httpHeaders", new JSONObject(config.getHttpHeaders()));
         json.put("maxLocations", config.getMaxLocations());
+        json.put("intervalOfScan", config.getIntervalOfScan());
+        json.put("intervalBetweenScans", config.getIntervalBetweenScans());
         LocationTemplate tpl = config.getTemplate();
         Object template = JSONObject.NULL;
         if (tpl instanceof HashMapLocationTemplate) {

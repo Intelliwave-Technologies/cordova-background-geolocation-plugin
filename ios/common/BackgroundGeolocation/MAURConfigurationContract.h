@@ -39,6 +39,8 @@
 #define CC_COLUMN_NAME_PAUSE_LOCATION_UPDATES "pause_updates"
 #define CC_COLUMN_NAME_TEMPLATE               "template"
 #define CC_COLUMN_NAME_LAST_UPDATED_AT        "updated_at"
+#define CC_COLUMN_NAME_SCAN_INTERVAL          "scan_interval"
+#define CC_COLUMN_NAME_INTERVAL_BETWEEN_SCANS "interval_between_scans"
 
 @interface MAURConfigurationContract : NSObject
 
