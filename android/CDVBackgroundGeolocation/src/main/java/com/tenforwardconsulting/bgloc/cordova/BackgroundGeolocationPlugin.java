@@ -14,6 +14,7 @@ package com.tenforwardconsulting.bgloc.cordova;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
+import android.util.Log;
 
 import com.marianhello.bgloc.BackgroundGeolocationFacade;
 import com.marianhello.bgloc.Config;
@@ -71,6 +72,9 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
     public static final String ACTION_END_TASK = "endTask";
     public static final String ACTION_REGISTER_HEADLESS_TASK = "registerHeadlessTask";
     public static final String ACTION_FORCE_SYNC = "forceSync";
+
+	public static final String ACTION_HEALTH_CHECK = "healthCheck";
+	public static final String ACTION_STOP_ALARM = "stopAlarm";
 
     private BackgroundGeolocationFacade facade;
 
@@ -133,7 +137,10 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
         super.pluginInitialize();
 
         logger = LoggerManager.getLogger(BackgroundGeolocationPlugin.class);
-        facade = new BackgroundGeolocationFacade(this.getContext(), this);
+
+		Activity activity = cordova.getActivity();
+        facade = new BackgroundGeolocationFacade(this.getContext(), this, webView);
+
         facade.resume();
     }
 
@@ -147,6 +154,7 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
             return true;
         }
         else if (ACTION_START.equals(action)) {
+
             runOnWebViewThread(new Runnable() {
                 public void run() {
                     facade.start();
@@ -156,14 +164,23 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
 
             return true;
         } else if (ACTION_STOP.equals(action)) {
-            runOnWebViewThread(new Runnable() {
-                public void run() {
-                    facade.stop();
-                    callbackContext.success();
-                }
-            });
+			runOnWebViewThread(new Runnable() {
+				public void run() {
+					facade.stop();
+					callbackContext.success();
+				}
+			});
 
-            return true;
+			return true;
+		} else if (ACTION_STOP_ALARM.equals(action)) {
+			runOnWebViewThread(new Runnable() {
+				public void run() {
+					facade.stopAlarm();
+					callbackContext.success();
+				}
+			});
+
+			return true;
         } else if (ACTION_SWITCH_MODE.equals(action)) {
             try {
                 int mode = data.getInt(0);
@@ -365,7 +382,10 @@ public class BackgroundGeolocationPlugin extends CordovaPlugin implements Plugin
             logger.debug("Forced location sync requested");
             facade.forceSync();
             return true;
-        }
+        } else if (ACTION_HEALTH_CHECK.equals(action)) {
+			facade.healthCheck();
+			return true;
+		}
 
         return false;
     }

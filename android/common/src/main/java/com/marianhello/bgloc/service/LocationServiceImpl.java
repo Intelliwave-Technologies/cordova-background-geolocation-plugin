@@ -9,15 +9,20 @@ This is a new class
 
 package com.marianhello.bgloc.service;
 
+import android.Manifest;
 import android.accounts.Account;
+import android.app.Activity;
+import android.app.AlarmManager;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.app.Service;
 import android.content.BroadcastReceiver;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.content.pm.PackageManager;
 import android.net.ConnectivityManager;
 import android.net.NetworkInfo;
 import android.os.Binder;
@@ -29,9 +34,15 @@ import android.os.IBinder;
 import android.os.Looper;
 import android.os.Message;
 import android.os.Process;
+import android.util.Log;
+
 import androidx.annotation.Nullable;
+import androidx.core.app.ActivityCompat;
+import androidx.core.app.NotificationCompat;
+import androidx.core.app.NotificationManagerCompat;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
+import com.marianhello.bgloc.AppStoppedAlarmReceiver;
 import com.marianhello.bgloc.Config;
 import com.marianhello.bgloc.ConnectivityListener;
 import com.marianhello.bgloc.sync.NotificationHelper;
@@ -62,10 +73,13 @@ import com.marianhello.logging.UncaughtExceptionLogger;
 import org.chromium.content.browser.ThreadUtils;
 import org.json.JSONException;
 
+import static com.marianhello.bgloc.BackgroundGeolocationFacade.STATIC_WEBVIEW_REFERENCE;
 import static com.marianhello.bgloc.service.LocationServiceIntentBuilder.containsCommand;
 import static com.marianhello.bgloc.service.LocationServiceIntentBuilder.containsMessage;
 import static com.marianhello.bgloc.service.LocationServiceIntentBuilder.getCommand;
 import static com.marianhello.bgloc.service.LocationServiceIntentBuilder.getMessage;
+
+import java.util.Date;
 
 public class LocationServiceImpl extends Service implements ProviderDelegate, LocationService {
 
@@ -103,8 +117,11 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
 
     public static final int MSG_ON_HTTP_AUTHORIZATION = 107;
 
+    private static final String SITESENSE_VITAL_TAG = "SITESENSE_VITAL";
+
     /** notification id */
     private static int NOTIFICATION_ID = 1;
+	private static int WEBVIEW_STOPPED_RUNNING_NOTIFICATION_ID = 101;
 
     private ResourceResolver mResolver;
     private Config mConfig;
@@ -124,6 +141,8 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
     private long mServiceId = -1;
     private static boolean sIsRunning = false;
     private boolean mIsInForeground = false;
+
+	private boolean mServiceIsRestartedWithNullIntent = false;
 
     private static LocationTransform sLocationTransform;
     private static LocationProviderFactory sLocationProviderFactory;
@@ -184,7 +203,8 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
             mHandlerThread = new HandlerThread("LocationServiceImpl.Thread", Process.THREAD_PRIORITY_BACKGROUND);
         }
         mHandlerThread.start();
-        // An Android service handler is a handler running on a specific background thread.
+
+		// An Android service handler is a handler running on a specific background thread.
         mServiceHandler = new ServiceHandler(mHandlerThread.getLooper());
 
         mResolver = ResourceResolver.newInstance(this);
@@ -270,8 +290,8 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
     @Override
     public int onStartCommand(Intent intent, int flags, int startId) {
         if (intent == null) {
-            // when service was killed and restarted we will restart service
             start();
+			mServiceIsRestartedWithNullIntent = true;
             return START_STICKY;
         }
 
@@ -298,6 +318,20 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
         return START_STICKY;
     }
 
+	private Date lastCheckinFromWebview = new Date();
+
+	// Alarm interval should be at least 1.5x bigger then check interval so we don't accidentally
+	// fire alarm before refreshing.
+	private static final int HEALTH_ALARM_INTERVAL = 120000; // 120 seconds
+	private static final int HEALTH_CHECK_INTERVAL = 60000; // 60 seconds
+	private Handler healthTimerHandler = new Handler();
+	Runnable healthTimerRunnable = new Runnable() {
+		@Override
+		public void run() {
+			checkApplicationVitals();
+		}
+	};
+
     private void processMessage(String message) {
         // currently we do not process any message
     }
@@ -314,6 +348,9 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
                 case CommandId.STOP:
                     stop();
                     break;
+				case CommandId.STOP_ALARM:
+					clearAlarm();
+					break;
                 case CommandId.CONFIGURE:
                     configure((Config) arg);
                     break;
@@ -332,6 +369,9 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
                 case CommandId.STOP_HEADLESS_TASK:
                     stopHeadlessTask();
                     break;
+				case CommandId.CHECKIN_FROM_WEBVIEW:
+					checkinFromWebview();
+					break;
             }
         } catch (Exception e) {
             logger.error("processCommand: exception", e);
@@ -395,6 +435,7 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
             mProvider.onStop();
         }
 
+		clearHealthTimer();
         stopForeground(true);
         stopSelf();
 
@@ -406,7 +447,7 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
     public void startForeground() {
 
         // Start the service even if we're in the foreground.
-        if (sIsRunning) { 
+        if (sIsRunning) {
             Config config = getConfig();
             Notification notification = new NotificationHelper.NotificationFactory(this).getNotification(
                     config.getNotificationTitle(),
@@ -419,8 +460,11 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
                 mProvider.onCommand(LocationProvider.CMD_SWITCH_MODE,
                         LocationProvider.FOREGROUND_MODE);
             }
+
             super.startForeground(NOTIFICATION_ID, notification);
             mIsInForeground = true;
+
+			startHealthTimer();
         }
     }
 
@@ -530,6 +574,108 @@ public class LocationServiceImpl extends Service implements ProviderDelegate, Lo
             }
         });
     }
+
+	public void startHealthTimer() {
+		healthTimerHandler.postDelayed(healthTimerRunnable, HEALTH_CHECK_INTERVAL);
+	}
+
+	public void clearHealthTimer() {
+		healthTimerHandler.removeCallbacksAndMessages(null);
+	}
+
+	public void setAlarm() {
+		Context context = getApplicationContext();
+		AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+
+		Intent intent = new Intent(context, AppStoppedAlarmReceiver.class);
+
+		// Set action to fix android's security warnings:
+		// https://stackoverflow.com/questions/76786437/android-app-stacktrace-new-mutable-implicit-pendingintent-pkg-action-null
+		intent.setAction("com.intelliwavetechnologies.sitesensemobile");
+
+		PendingIntent pendingIntent = PendingIntent.getBroadcast(
+			context,
+			0,
+			intent,
+			PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+
+		long triggerAfterMillis = System.currentTimeMillis() + HEALTH_ALARM_INTERVAL;
+		alarmManager.setExact(AlarmManager.RTC_WAKEUP, triggerAfterMillis, pendingIntent);
+	}
+
+	public void stopAlarm() { clearAlarm(); }
+	public void clearAlarm() {
+		Context context = getApplicationContext();
+		AlarmManager alarmManager = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+		Intent intent = new Intent(context, AppStoppedAlarmReceiver.class);
+		intent.setAction("com.intelliwavetechnologies.sitesensemobile");
+
+		PendingIntent pendingIntent = PendingIntent.getBroadcast(
+			context,
+			0,
+			intent,
+			PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_MUTABLE);
+		alarmManager.cancel(pendingIntent);
+	}
+
+	public void displayNotification() {
+		Notification notification = new NotificationHelper.NotificationFactory(LocationServiceImpl.this).getNotification(
+			"SiteSense - Background Geolocation Notification",
+			"App has been terminated due to out of memory or closed by user. Background BLE scanning is not active or active with restricted performance. Tap here to wake up the app and resume normal scanning.",
+			null,
+			android.R.drawable.ic_dialog_alert,
+			mConfig.getNotificationIconColor());
+
+		NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+		notificationManager.notify(WEBVIEW_STOPPED_RUNNING_NOTIFICATION_ID, notification);
+	}
+
+	/**
+	 * Checks if webview is still running by confirmed various characteristics.
+	 * If webview has stopped running, then it displays a notification after 2 minutes.
+	 * If app is asleep it should not trigger a notification because service should not be restarted or asleep as well.
+	 */
+	public void checkApplicationVitals() {
+
+		Log.v(SITESENSE_VITAL_TAG, "Checking application vitals:");
+		Log.v(SITESENSE_VITAL_TAG, "Is webview defined? " + (STATIC_WEBVIEW_REFERENCE != null));
+
+		if (STATIC_WEBVIEW_REFERENCE != null) {
+			Log.v(SITESENSE_VITAL_TAG, "is webview initialized? " + STATIC_WEBVIEW_REFERENCE.isInitialized());
+		}
+
+		Log.v(SITESENSE_VITAL_TAG, "Is service restarted with null intent? " + mServiceIsRestartedWithNullIntent);
+		Log.v(SITESENSE_VITAL_TAG, "Has it been more then 24 hours since last checkin? " + isMoreThan24Hours(lastCheckinFromWebview, new Date()));
+
+		// If any of these indicators are true, then the webview has died or stopped responding.
+		boolean[] processDeadIndicators = new boolean[] {
+			STATIC_WEBVIEW_REFERENCE == null || !STATIC_WEBVIEW_REFERENCE.isInitialized(),
+			mServiceIsRestartedWithNullIntent,
+			isMoreThan24Hours(lastCheckinFromWebview, new Date()),
+		};
+
+		for ( boolean indicator : processDeadIndicators ) {
+			if (indicator) {
+				displayNotification();
+				stop();
+				break;
+			}
+		}
+
+		// Reset health timer.
+		startHealthTimer();
+		setAlarm();
+	}
+
+	public boolean isMoreThan24Hours(Date lastDate, Date newDate) {
+		long differenceInMillis = Math.abs(newDate.getTime() - lastDate.getTime());
+		long differenceInHours = differenceInMillis / (1000 * 60 * 60);
+		return differenceInHours > 24;
+	}
+
+	public void checkinFromWebview() {
+		lastCheckinFromWebview = new Date();
+	}
 
     @Override
     public void onLocation(BackgroundLocation location) {

@@ -65,7 +65,9 @@ public class LocationServiceProxy implements LocationService, LocationServiceInf
 
     @Override
     public void start() {
-        Intent intent = mIntentBuilder.setCommand(CommandId.START).build();
+        Intent intent = mIntentBuilder
+			.setCommand(CommandId.START)
+			.build();
 //        intent.addFlags(Intent.FLAG_FROM_BACKGROUND);
         // start service to keep service running even if no clients are bound to it
         executeIntentCommand(intent);
@@ -117,6 +119,19 @@ public class LocationServiceProxy implements LocationService, LocationServiceInf
         }
         return false;
     }
+
+	public void checkinFromWebview() {
+		if (!isStarted()) { return; }
+
+		Intent intent = mIntentBuilder.setCommand(CommandId.CHECKIN_FROM_WEBVIEW).build();
+		executeIntentCommand(intent);
+	}
+
+	public void stopAlarm() {
+		if (!isStarted()) { return; }
+		Intent intent = mIntentBuilder.setCommand(CommandId.STOP_ALARM).build();
+		executeIntentCommand(intent);
+	}
 
     @Override
     public boolean isBound() {

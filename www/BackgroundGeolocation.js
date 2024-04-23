@@ -208,6 +208,18 @@ var BackgroundGeolocation = {
       'forceSync');
   },
 
+  healthCheck: function (success, failure) {
+    return execWithPromise(success,
+      failure,
+       'healthCheck');
+   },
+
+   stopAlarm: function (success, failure) {
+    return execWithPromise(success,
+      failure,
+      'stopAlarm');
+  },
+
   on: function (event, callbackFn) {
     assert(this.events.indexOf(event) > -1, [TAG, '#on unknown event "' + event + '"']);
     if (!callbackFn) {

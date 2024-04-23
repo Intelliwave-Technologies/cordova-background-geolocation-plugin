@@ -124,6 +124,8 @@
         <source-file src="android/common/src/main/java/ru/andremoniy/utils/TextUtils.java" target-dir="src/ru/andremoniy/utils" />
         <!-- End of generated sources -->
 
+        <source-file src="android/common/src/main/java/com/marianhello/bgloc/AppStoppedAlarmReceiver.java" target-dir="src/com/marianhello/bgloc" />
+
         <resource-file src="android/common/src/main/res/xml/syncadapter.xml" target="res/xml/syncadapter.xml" />
         <resource-file src="android/common/src/main/res/xml/authenticator.xml" target="res/xml/authenticator.xml" />
 
@@ -184,6 +186,7 @@
             <uses-permission android:name="android.permission.WAKE_LOCK" />
             <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
             <uses-permission android:name="android.hardware.location" />
+            <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
         </config-file>
         <config-file target="res/xml/config.xml" parent="/*">
             <feature name="BackgroundGeolocation">
