@@ -113,6 +113,22 @@ static NSString * const TAG = @"CDVBackgroundGeolocation";
     }];
 }
 
+- (void) healthCheck:(CDVInvokedUrlCommand*)command
+{
+    NSLog(@"%@ #%@", TAG, @"healthCheck");
+    [self.commandDelegate runInBackground:^{
+        NSError *error = nil;
+        BOOL success = [facade healthCheck:&error];
+        CDVPluginResult* result = nil;
+        if (success) {
+            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_OK];
+        } else {
+            result = [CDVPluginResult resultWithStatus:CDVCommandStatus_ERROR messageAsDictionary:[self errorToDictionary:error]];
+        }
+        [self.commandDelegate sendPluginResult:result callbackId:command.callbackId];
+    }];
+}
+
 /**
  * Change
  * @param {Number} operation mode BACKGROUND/FOREGROUND

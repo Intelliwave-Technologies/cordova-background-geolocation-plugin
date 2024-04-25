@@ -10,8 +10,7 @@
 #import "MAURRawLocationProvider.h"
 #import "MAURLocationManager.h"
 #import "MAURLogging.h"
-
-@import UserNotifications;
+#import "NotificationHelper.h"
 
 static NSString * const TAG = @"RawLocationProvider";
 static NSString * const Domain = @"com.marianhello";
@@ -34,10 +33,11 @@ enum {
 @implementation MAURRawLocationProvider {
 
     BOOL isStarted;
-    BOOL isNotificationPermitted;
     MAURLocationManager *locationManager;
     
     MAURConfig *_config;
+
+    NotificationHelper *notificationHelper;
 
     NSTimer *startScanTimer; // Timer to control accuracy to save battery.
     NSTimer *scanTimer; // Timer to control length of scan and reset starting scan.
@@ -50,6 +50,8 @@ enum {
 - (instancetype) init
 {
     self = [super init];
+
+    notificationHelper = [[NotificationHelper alloc] init];
     scanInterval = 30;
     intervalBetweenScans = 5*60;
 
@@ -89,96 +91,14 @@ enum {
     return YES;
 }
 
--(void)removeNotifications {
-    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-    NSArray *array = [NSArray arrayWithObjects:APP_TERMINATED_NOTIFICATION_IDENTIFIER, APP_TERMINATED_NOTIFICATION_REPEATING_IDENTIFIER, nil];
-    
-    [center removePendingNotificationRequestsWithIdentifiers:array];
-}
-
--(void)showNotification:(double)secondsToTrigger
-                repeats:(BOOL)repeats
-             identifier:(NSString*)requestIndentifier
-{
-    UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
-
-    // Launched in background likely after app terminate, display notification that background geolocation is restricted.
-    if (@available(iOS 10, *))
-    {
-        [self isNotificationPermitted:center withCompletionHandler:^(BOOL permitted) {
-            if (permitted) {
-                [self scheduleNotification:center
-                          secondsToTrigger:secondsToTrigger
-                                   repeats:repeats
-                                identifier:requestIndentifier];
-            }
-        }];
-    }
-}
-
--(void)scheduleNotification:(UNUserNotificationCenter *)center
-           secondsToTrigger:(double)secondsToTrigger
-                    repeats:(BOOL)repeats
-                 identifier:(NSString*)requestIndentifier
-{
-    UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-    content.title = @"SiteSense - Background Geolocation Notification";
-    content.body = @"App has been terminated due to out of memory or closed by user. Background BLE scanning is not active or active with restricted performance. Tap here to wake up the app and resume normal scanning.";
-    
-    content.sound = UNNotificationSound.defaultSound;
-    content.badge = @1;
-    
-    if (@available(iOS 15, *)) {
-        content.interruptionLevel = UNNotificationInterruptionLevelActive;
-    }
-    
-    NSDictionary* userInfo = @{@"isGeolocationNotification": @(TRUE), @"repeats": @(repeats)};
-    content.userInfo = userInfo;
-
-    NSTimeInterval notificationTrigger = secondsToTrigger;
-
-    UNNotificationTrigger* trigger = [UNTimeIntervalNotificationTrigger
-                                      triggerWithTimeInterval:notificationTrigger
-                                                      repeats:repeats];
-    
-    // Passing UNTimeIntervalNotificationTrigger with time = 0 is still little slow to deliver.
-    // It will triggers instantly if trigger is null.
-    if (secondsToTrigger == 0) {
-        trigger = Nil;
-    }
-
-    UNNotificationRequest *request = [UNNotificationRequest requestWithIdentifier:requestIndentifier
-                                                                          content:content
-                                                                          trigger:trigger];
-    
-    [center addNotificationRequest:request withCompletionHandler:^(NSError * _Nullable error) {
-        if (error != nil) {
-            NSLog(@"NotificationProvider - %@", error.localizedDescription);
-        }
-        NSLog(@"NotificationProvider - Successfully maybe scheduled notification.");
-    }];
-}
-
--(BOOL)isNotificationPermitted:(UNUserNotificationCenter *)center
-    withCompletionHandler:(void (^)(BOOL permitted))completionHandler
-{
-    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings* settings) {
-        BOOL authorized = settings.authorizationStatus == UNAuthorizationStatusAuthorized;
-        BOOL enabled    = settings.notificationCenterSetting == UNNotificationSettingEnabled;
-        BOOL permitted  = authorized && enabled;
-        NSLog(@"NotificationProvider - Is Permitted: %s",  permitted ? "true" : "false");
-        completionHandler(permitted);
-    }];
-}
-
 -(void)resetNotifications
 {
-    [self removeNotifications];
-    [self showNotification: notificationTime
+    [notificationHelper removeNotifications];
+    [notificationHelper showNotification: notificationTime
                    repeats:false
                 identifier:APP_TERMINATED_NOTIFICATION_IDENTIFIER];
 
-    [self showNotification: recurringNotificationTime
+    [notificationHelper showNotification: recurringNotificationTime
                    repeats:true
                 identifier:APP_TERMINATED_NOTIFICATION_REPEATING_IDENTIFIER];
 }
@@ -237,7 +157,7 @@ enum {
         scanTimer = nil;
         
         [notificationTimer invalidate];
-        [self removeNotifications];
+        [notificationHelper removeNotifications];
         notificationTimer = nil;
         
         return YES;
