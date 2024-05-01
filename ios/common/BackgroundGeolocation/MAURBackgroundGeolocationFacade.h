@@ -43,7 +43,7 @@
 - (NSArray*) getLogEntries:(NSInteger)limit fromLogEntryId:(NSInteger)entryId minLogLevelFromString:(NSString *)minLogLevel;
 - (void) forceSync;
 - (void) onAppTerminate;
-
+- (BOOL) healthCheck:(NSError * __autoreleasing *)outError;
 
 /**
  * Sets a transform for each coordinate about to be committed (sent or saved for later sync).

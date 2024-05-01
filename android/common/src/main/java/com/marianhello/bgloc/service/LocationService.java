@@ -13,4 +13,6 @@ public interface LocationService {
     void startHeadlessTask();
     void stopHeadlessTask();
     void executeProviderCommand(int command, int arg);
+	void checkinFromWebview();
+	void stopAlarm();
 }

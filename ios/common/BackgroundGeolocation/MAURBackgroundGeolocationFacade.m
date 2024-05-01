@@ -28,6 +28,7 @@
 #import "MAURUncaughtExceptionLogger.h"
 #import "MAURPostLocationTask.h"
 #import "INTULocationManager.h"
+#import "NotificationHelper.h"
 
 // error messages
 #define CONFIGURE_ERROR_MSG             "Configuration error."
@@ -43,7 +44,16 @@
 static NSString * const BGGeolocationDomain = @"com.marianhello";
 static NSString * const TAG = @"BgGeo";
 
+// Use custom identifer for healh check notification so it doesn't get cleared as part of location activity usage.
+static NSString * const APP_HEALTH_CHECK_NOTIFICATION_IDENTIFIER = @"BackgroundGeolocationWebviewUnresponsive";
+
 FMDBLogger *sqliteLogger;
+
+enum {
+    THIRTY_MINUTES_IN_SECONDS = 1800,
+    healthCheckInterval = 600, //s => 10 minutes
+    notificationTime = 60, //s
+};
 
 @interface MAURBackgroundGeolocationFacade () <MAURProviderDelegate, MAURPostLocationTaskDelegate>
 @end
@@ -51,7 +61,8 @@ FMDBLogger *sqliteLogger;
 @implementation MAURBackgroundGeolocationFacade {
     BOOL isStarted;
     MAUROperationalMode operationMode;
-    
+
+    NotificationHelper *notificationHelper;
     UILocalNotification *localNotification;
     
     // configurable options
@@ -60,6 +71,9 @@ FMDBLogger *sqliteLogger;
     MAURLocation *stationaryLocation;
     MAURAbstractLocationProvider<MAURLocationProvider> *locationProvider;
     MAURPostLocationTask *postLocationTask;
+
+    NSDate *lastCheckinFromWebview;
+    NSTimer *healthCheckTimer; // Timer to check if webview is still running.
 }
 
 
@@ -93,6 +107,9 @@ FMDBLogger *sqliteLogger;
     localNotification.timeZone = [NSTimeZone defaultTimeZone];
     
     isStarted = NO;
+
+    notificationHelper = [[NotificationHelper alloc] init];
+    lastCheckinFromWebview = [NSDate date];
     
     return self;
 }
@@ -205,6 +222,9 @@ FMDBLogger *sqliteLogger;
         
         isStarted = [locationProvider onStart:&error];
         locationProvider.delegate = self;
+
+        // Start the health check timer.
+        [self resetHealthCheckTimer];
     }];
     
     
@@ -234,9 +254,61 @@ FMDBLogger *sqliteLogger;
     
     [self runOnMainThread:^{
         isStarted = ![locationProvider onStop:outError];
+
+        [healthCheckTimer invalidate];
+        healthCheckTimer = nil;
     }];
     
     return isStarted;
+}
+
+// If the webview doesn't checkin for a specific amount of time, assume webview has died.
+// Use a fairly large to avoid false positives.
+-(void)checkApplicationVitals
+{
+    NSDate *now = [NSDate date];
+    NSTimeInterval timeSinceLastCheckin = [now timeIntervalSinceDate:lastCheckinFromWebview];
+
+    if (timeSinceLastCheckin > THIRTY_MINUTES_IN_SECONDS) {
+        NSLog(@"RawLocationProvider - Webview has not checked in for over 30 minutes.");
+        
+        [notificationHelper showNotification: notificationTime
+            repeats:false
+            identifier:APP_HEALTH_CHECK_NOTIFICATION_IDENTIFIER];
+
+        // Stop the service
+        [self stop:nil];
+        
+        // Don't restart the timer.
+        return;
+    }
+
+    [self resetHealthCheckTimer];
+}
+
+-(void)resetHealthCheckTimer
+{
+    if (healthCheckTimer == nil || ![healthCheckTimer isValid]) {
+         NSLog(@"RawLocationProvider - Starting healthCheckTimer %f", healthCheckTimer);
+         healthCheckTimer = [NSTimer scheduledTimerWithTimeInterval:healthCheckInterval
+                             target: self
+                             selector: @selector(checkApplicationVitals)
+                             userInfo: nil
+                             repeats: YES];
+    }
+}
+
+- (BOOL) healthCheck:(NSError * __autoreleasing *)outError
+{
+    NSLog(@"MAURBackgroundGeolocationFacade - Checking in from webview");
+    
+    if (!isStarted) {
+        return YES;
+    }
+
+    lastCheckinFromWebview = [NSDate date];
+ 
+    return TRUE;
 }
 
 /**
@@ -517,7 +589,7 @@ FMDBLogger *sqliteLogger;
 
 - (void) onLocationChanged:(MAURLocation *)location
 {
-    DDLogDebug(@"%@ #onLocationChanged %@", TAG, location);
+    NSLog(@"%@ #onLocationChanged %@", TAG, location);
     stationaryLocation = nil;
     
     [postLocationTask add:location];
@@ -581,9 +653,10 @@ FMDBLogger *sqliteLogger;
 {
     MAURConfig *config = [self getConfig];
     if ([config stopOnTerminate]) {
-        DDLogInfo(@"%@ #onAppTerminate.", TAG);
+        NSLog(@"%@ %@", TAG, @"#onAppTerminate.");
         [self stop:nil];
     } else {
+        NSLog(@"%@ %@", TAG, @"Running onTerminate on locationProvider.");
         [locationProvider onTerminate];
     }
 }
