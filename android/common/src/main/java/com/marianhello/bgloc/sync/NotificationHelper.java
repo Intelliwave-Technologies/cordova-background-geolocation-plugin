@@ -6,6 +6,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.os.Build;
@@ -49,53 +50,70 @@ public class NotificationHelper {
         }
 
         public Notification getNotification(String title, String text, String largeIcon, String smallIcon, String color) {
-            Context appContext = mContext.getApplicationContext();
+			Context appContext = mContext.getApplicationContext();
 
-            // Build a Notification required for running service in foreground.
-            NotificationCompat.Builder builder = new NotificationCompat.Builder(mContext, NotificationHelper.SERVICE_CHANNEL_ID);
-
-            builder.setContentTitle(title);
-            builder.setContentText(text);
+			int smallIconId = android.R.drawable.ic_menu_mylocation;
             if (smallIcon != null && !smallIcon.isEmpty()) {
-                builder.setSmallIcon(mResolver.getDrawable(smallIcon));
-            } else {
-                builder.setSmallIcon(android.R.drawable.ic_menu_mylocation);
+                smallIconId = mResolver.getDrawable(smallIcon);
             }
+
+			Bitmap largeIconImage = null;
             if (largeIcon != null && !largeIcon.isEmpty()) {
                 int largeIconId = mResolver.getDrawable(largeIcon);
                 if (largeIconId == 0) {
                     logger.warn("The resource " + largeIcon + " was not found in the drawable folder. Please include it when building the app.");
                 }
-                builder.setLargeIcon(BitmapFactory.decodeResource(appContext.getResources(), largeIconId));
-            }
-            if (color != null && !color.isEmpty()) {
-                builder.setColor(this.parseNotificationIconColor(color));
+
+                largeIconImage = BitmapFactory.decodeResource(appContext.getResources(), largeIconId);
             }
 
-            // Add an onclick handler to the notification
-            String packageName = appContext.getPackageName();
-            Intent launchIntent = appContext.getPackageManager().getLaunchIntentForPackage(packageName);
-            
-            if (launchIntent != null) {
-                // NOTICE: testing apps might not have registered launch intent
-                launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
-
-                // TODO: The changes below were made to get this project to compile on compileSdkVersion=31 without updating jdk to 11.
-                int flags = PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE;
-                
-                // int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
-                //         ? PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
-                //         : PendingIntent.FLAG_CANCEL_CURRENT;
-
-                PendingIntent contentIntent = PendingIntent.getActivity(appContext, 0, launchIntent, flags);
-                builder.setContentIntent(contentIntent);
-            }
-
-            Notification notification = builder.build();
-            notification.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_FOREGROUND_SERVICE | Notification.FLAG_NO_CLEAR;
-
-            return notification;
+			return getNotification(title, text, largeIconImage, smallIconId, color);
         }
+
+		public Notification getNotification(String title, String text, Bitmap largeIcon, int smallIcon, String color) {
+			Context appContext = mContext.getApplicationContext();
+
+			// Build a Notification required for running service in foreground.
+			NotificationCompat.Builder builder = new NotificationCompat.Builder(mContext, NotificationHelper.SERVICE_CHANNEL_ID);
+			builder.setContentTitle(title);
+			builder.setContentText(text);
+
+			if (largeIcon != null) {
+				builder.setLargeIcon(largeIcon);
+			}
+
+			// Small icon is required or android will throw an error!
+			builder.setSmallIcon(smallIcon);
+
+			if (color != null && !color.isEmpty()) {
+				builder.setColor(this.parseNotificationIconColor(color));
+			}
+
+			// Add an onclick handler to the notification
+			String packageName = appContext.getPackageName();
+			Intent launchIntent = appContext.getPackageManager().getLaunchIntentForPackage(packageName);
+
+			if (launchIntent != null) {
+				// NOTICE: testing apps might not have registered launch intent
+				launchIntent.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+
+				// TODO: The changes below were made to get this project to compile on compileSdkVersion=31 without updating jdk to 11.
+				int flags = PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE;
+
+				// int flags = Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
+				//         ? PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE
+				//         : PendingIntent.FLAG_CANCEL_CURRENT;
+
+				PendingIntent contentIntent = PendingIntent.getActivity(appContext, 0, launchIntent, flags);
+				builder.setContentIntent(contentIntent);
+			}
+
+			Notification notification = builder.build();
+			notification.flags |= Notification.FLAG_ONGOING_EVENT | Notification.FLAG_FOREGROUND_SERVICE | Notification.FLAG_NO_CLEAR;
+
+			return notification;
+
+		}
     }
 
     public static void registerAllChannels(Context context) {
