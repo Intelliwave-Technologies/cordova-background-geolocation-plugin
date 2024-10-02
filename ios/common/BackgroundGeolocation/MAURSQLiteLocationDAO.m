@@ -121,133 +121,21 @@
     return rowCount;
 }
 
+// NOTE: Persisting location is not used for functionality.
+// When resolving merge conflicts, always overwrite from remote and replace these methods with placeholders again.
 - (NSNumber*) persistLocation:(MAURLocation*)location intoDatabase:(FMDatabase*)database
 {
-    NSNumber* locationId = nil;
-    NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
-    NSNumber *recordedAt = [NSNumber numberWithDouble:timestamp];
-
-    NSString *sql = @"INSERT INTO " @LC_TABLE_NAME @" ("
-    @LC_COLUMN_NAME_TIME
-    @COMMA_SEP @LC_COLUMN_NAME_ACCURACY
-    @COMMA_SEP @LC_COLUMN_NAME_SPEED
-    @COMMA_SEP @LC_COLUMN_NAME_BEARING
-    @COMMA_SEP @LC_COLUMN_NAME_ALTITUDE
-    @COMMA_SEP @LC_COLUMN_NAME_LATITUDE
-    @COMMA_SEP @LC_COLUMN_NAME_LONGITUDE
-    @COMMA_SEP @LC_COLUMN_NAME_PROVIDER
-    @COMMA_SEP @LC_COLUMN_NAME_LOCATION_PROVIDER
-    @COMMA_SEP @LC_COLUMN_NAME_STATUS
-    @COMMA_SEP @LC_COLUMN_NAME_RECORDED_AT
-    @") VALUES (?,?,?,?,?,?,?,?,?,?,?)";
-
-    BOOL success = [database executeUpdate:sql,
-        [NSNumber numberWithDouble:[location.time timeIntervalSince1970]],
-        location.accuracy,
-        location.speed,
-        location.heading,
-        location.altitude,
-        location.latitude,
-        location.longitude,
-        location.provider ?: [NSNull null],
-        location.locationProvider ?: [NSNull null],
-        location.isValid == YES ? @(1) : @(0),
-        recordedAt
-    ];
-
-    if (success) {
-        locationId = [NSNumber numberWithLongLong:[database lastInsertRowId]];
-    } else {
-        NSLog(@"Inserting location %@ failed code: %d: message: %@", location.time, [database lastErrorCode], [database lastErrorMessage]);
-    }
-
-    return locationId;
+    return 0;  
 }
 
 - (NSNumber*) persistLocation:(MAURLocation*)location
 {
-    __block NSNumber* locationId = nil;
-
-    [queue inDatabase:^(FMDatabase *database) {
-        locationId = [self persistLocation:location intoDatabase:database];
-    }];
-
-    return locationId;
+    return 0;
 }
 
 - (NSNumber*) persistLocation:(MAURLocation*)location limitRows:(NSInteger)maxRows
 {
-    __block NSNumber *locationId;
-    NSTimeInterval timestamp = [[NSDate date] timeIntervalSince1970];
-    NSNumber *recordedAt = [NSNumber numberWithDouble:timestamp];
-
-    [queue inDatabase:^(FMDatabase *database) {
-        NSInteger rowCount = 0;
-        NSString *sql = @"SELECT COUNT(*) FROM " @LC_TABLE_NAME;
-
-        FMResultSet *rs = [database executeQuery:sql];
-        if ([rs next]) {
-            rowCount = [rs intForColumnIndex:0];
-        }
-        [rs close];
-
-        if (rowCount < maxRows) {
-            locationId = [self persistLocation:location intoDatabase:database];
-            return;
-        } else if (rowCount > maxRows) {
-            sql = [NSString stringWithFormat:@"DELETE FROM %1$@ WHERE %2$@ IN (SELECT %2$@ FROM %1$@ ORDER BY %3$@ LIMIT %4$ld);VACUUM;",
-                   @LC_TABLE_NAME, @LC_COLUMN_NAME_ID, @LC_COLUMN_NAME_RECORDED_AT, (rowCount - maxRows)];
-            if (![database executeStatements:sql]) {
-                NSLog(@"%@ failed code: %d: message: %@", sql, [database lastErrorCode], [database lastErrorMessage]);
-            }
-        }
-
-        // get oldest location id to be overwritten
-        sql = @"SELECT MIN(" @LC_COLUMN_NAME_ID ") FROM " @LC_TABLE_NAME @" WHERE " @LC_COLUMN_NAME_RECORDED_AT
-        @" = (SELECT min(" @LC_COLUMN_NAME_RECORDED_AT @") FROM " @LC_TABLE_NAME @" )";
-        rs = [database executeQuery:sql];
-        if ([rs next]) {
-            locationId = [NSNumber numberWithLongLong:[rs longLongIntForColumnIndex:0]];
-        }
-        [rs close];
-
-        sql = @"UPDATE " @LC_TABLE_NAME @" SET "
-        @LC_COLUMN_NAME_TIME @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_ACCURACY @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_SPEED @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_BEARING @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_ALTITUDE @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_LATITUDE @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_LONGITUDE @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_PROVIDER @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_LOCATION_PROVIDER @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_STATUS @EQ_BIND
-        @COMMA_SEP @LC_COLUMN_NAME_RECORDED_AT @EQ_BIND
-        @" WHERE " @LC_COLUMN_NAME_ID @EQ_BIND;
-
-        BOOL success = [database executeUpdate:sql,
-            [NSNumber numberWithDouble:[location.time timeIntervalSince1970]],
-            location.accuracy,
-            location.speed,
-            location.heading,
-            location.altitude,
-            location.latitude,
-            location.longitude,
-            location.provider ?: [NSNull null],
-            location.locationProvider ?: [NSNull null],
-            location.isValid == YES ? @(1) : @(0),
-            recordedAt,
-            locationId
-        ];
-
-        if (!success) {
-            NSLog(@"Inserting location %@ failed code: %d: message: %@", location.time, [database lastErrorCode], [database lastErrorMessage]);
-            locationId = [NSNumber numberWithInt:-1];
-        }
-
-    }];
-
-    return locationId;
+    return 0;
 }
 
 - (BOOL) deleteLocation:(NSNumber*)locationId error:(NSError * __autoreleasing *)outError
