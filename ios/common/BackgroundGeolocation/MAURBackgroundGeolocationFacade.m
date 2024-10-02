@@ -30,6 +30,10 @@
 #import "INTULocationManager.h"
 #import "NotificationHelper.h"
 
+// REQUIRED: Need to install BackgroundSync plugin.
+#import "SitesenseSQLiteDAO.h"
+#import "SitesenseLog.h"
+
 // error messages
 #define CONFIGURE_ERROR_MSG             "Configuration error."
 #define SERVICE_ERROR_MSG               "Cannot start service error."
@@ -262,6 +266,21 @@ enum {
     return isStarted;
 }
 
+-(void)insertLog:(NSString *)message {
+    SitesenseSQLiteDAO *dao = [SitesenseSQLiteDAO sharedInstance];
+    SitesenseLog *log = [SitesenseLog new];
+    log.level = @"LITE_APP_DIAGNOSTIC";
+    log.message = message;
+
+    NSDate *currentDate = [NSDate date];
+    NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
+    [dateFormatter setDateFormat:@"yyyy-MM-dd HH:mm:ss"]; // Set your desired date format
+    NSString *dateString = [dateFormatter stringFromDate:currentDate];
+    log.timestamp = dateString;
+
+    NSNumber *logId = [dao insertDebugLog: log];
+}
+
 // If the webview doesn't checkin for a specific amount of time, assume webview has died.
 // Use a fairly large to avoid false positives.
 -(void)checkApplicationVitals
@@ -271,10 +290,16 @@ enum {
 
     if (timeSinceLastCheckin > THIRTY_MINUTES_IN_SECONDS) {
         NSLog(@"RawLocationProvider - Webview has not checked in for over 30 minutes.");
-        
+
+        NSString *logString = [NSString stringWithFormat:@"Webview has not checked in for over 30 minutes. Terminating service."];
+        NSString *notificationBody = [NSString stringWithFormat:@"App has been unresponsive for over 30 minutes. Tap here to wake up the app and resume normal scanning."];
+
         [notificationHelper showNotification: notificationTime
-            repeats:false
-            identifier:APP_HEALTH_CHECK_NOTIFICATION_IDENTIFIER];
+                                     repeats:false
+                                  identifier:APP_HEALTH_CHECK_NOTIFICATION_IDENTIFIER
+                                        body:notificationBody];
+    
+        [self insertLog:logString];
 
         // Stop the service
         [self stop:nil];
@@ -289,7 +314,7 @@ enum {
 -(void)resetHealthCheckTimer
 {
     if (healthCheckTimer == nil || ![healthCheckTimer isValid]) {
-         NSLog(@"RawLocationProvider - Starting healthCheckTimer %f", healthCheckTimer);
+         NSLog(@"RawLocationProvider - Starting healthCheckTimer %@", healthCheckTimer);
          healthCheckTimer = [NSTimer scheduledTimerWithTimeInterval:healthCheckInterval
                              target: self
                              selector: @selector(checkApplicationVitals)
@@ -327,7 +352,7 @@ enum {
     }
     
     [self runOnMainThread:^{
-        [locationProvider onSwitchMode:mode];
+        [self->locationProvider onSwitchMode:mode];
     }];
 }
 

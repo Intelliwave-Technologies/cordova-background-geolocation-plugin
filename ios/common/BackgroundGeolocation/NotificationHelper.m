@@ -12,10 +12,11 @@ static NSString * const APP_TERMINATED_NOTIFICATION_REPEATING_IDENTIFIER = @"Bac
            secondsToTrigger:(double)secondsToTrigger
                     repeats:(BOOL)repeats
                  identifier:(NSString*)requestIndentifier
+                       body:(NSString*)body
 {
     UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
     content.title = @"SiteSense - Background Geolocation Notification";
-    content.body = @"App has been terminated due to out of memory or closed by user. Background BLE scanning is not active or active with restricted performance. Tap here to wake up the app and resume normal scanning.";
+    content.body = body;
     
     content.sound = UNNotificationSound.defaultSound;
     content.badge = @1;
@@ -66,6 +67,7 @@ static NSString * const APP_TERMINATED_NOTIFICATION_REPEATING_IDENTIFIER = @"Bac
 -(void)showNotification:(double)secondsToTrigger
                 repeats:(BOOL)repeats
              identifier:(NSString*)requestIndentifier
+                    body:(NSString*)body
 {
     UNUserNotificationCenter *center = [UNUserNotificationCenter currentNotificationCenter];
 
@@ -77,13 +79,24 @@ static NSString * const APP_TERMINATED_NOTIFICATION_REPEATING_IDENTIFIER = @"Bac
                 [self scheduleNotification:center
                           secondsToTrigger:secondsToTrigger
                                    repeats:repeats
-                                identifier:requestIndentifier];
+                                identifier:requestIndentifier
+                                      body:body];
             }
         }];
     }
 }
 
--(BOOL)isNotificationPermitted:(UNUserNotificationCenter *)center
+-(void)showNotification:(double)secondsToTrigger
+                repeats:(BOOL)repeats
+             identifier:(NSString*)requestIndentifier
+{
+    [self showNotification:secondsToTrigger 
+                   repeats:repeats 
+                identifier:requestIndentifier 
+                      body:@"App has been terminated due to out of memory or closed by user. Background BLE scanning is not active or active with restricted performance. Tap here to wake up the app and resume normal scanning."];
+}
+
+-(void)isNotificationPermitted:(UNUserNotificationCenter *)center
     withCompletionHandler:(void (^)(BOOL permitted))completionHandler
 {
     [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings* settings) {
