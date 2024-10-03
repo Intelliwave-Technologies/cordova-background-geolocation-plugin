@@ -220,12 +220,12 @@ enum {
         }
         
         // trap configuration errors
-        if (![locationProvider onConfigure:config error:&error]) {
+        if (![self->locationProvider onConfigure:config error:&error]) {
             return;
         }
         
-        isStarted = [locationProvider onStart:&error];
-        locationProvider.delegate = self;
+        self->isStarted = [self->locationProvider onStart:&error];
+        self->locationProvider.delegate = self;
 
         // Start the health check timer.
         [self resetHealthCheckTimer];
@@ -269,8 +269,8 @@ enum {
 -(void)insertLog:(NSString *)message {
     SitesenseSQLiteDAO *dao = [SitesenseSQLiteDAO sharedInstance];
     SitesenseLog *log = [SitesenseLog new];
-    log.level = @"LITE_APP_DIAGNOSTIC";
-    log.message = message;
+    log.severity = DIAGNOSTIC_SEVERITY;
+    log.log = message;
 
     NSDate *currentDate = [NSDate date];
     NSDateFormatter *dateFormatter = [[NSDateFormatter alloc] init];
