@@ -269,7 +269,7 @@ enum {
 -(void)insertLog:(NSString *)message {
     SitesenseSQLiteDAO *dao = [SitesenseSQLiteDAO sharedInstance];
     SitesenseLog *log = [SitesenseLog new];
-    log.severity = DIAGNOSTIC_SEVERITY;
+    log.severity = IOS_DIAGNOSTIC_SEVERITY;
     log.log = message;
 
     NSDate *currentDate = [NSDate date];
